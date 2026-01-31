@@ -26,7 +26,8 @@ export const AdminRoute = ({ children }: AdminRouteProps) => {
     }
 
     // Redirect to home if not admin
-    if (user?.role !== 'admin') {
+    // Check if user has admin role in roles array
+    if (!user?.roles?.includes('ADMIN')) {
         return <Navigate to={ROUTES.HOME} replace />
     }
 

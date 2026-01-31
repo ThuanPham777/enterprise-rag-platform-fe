@@ -1,16 +1,35 @@
 /**
  * Authentication Context
  * Provides authentication state and methods throughout the app
- * TODO: Implement actual authentication logic
+ * Integrates with backend auth API
  */
 
-import { createContext, useContext, useState, type ReactNode } from 'react'
-import type { User, AuthState, LoginCredentials } from '../types'
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react'
+import type {
+  User,
+  AuthState,
+  LoginCredentials,
+  RegisterCredentials,
+} from '../types'
 import { authService } from '../services/auth.service'
-import { STORAGE_KEYS } from '../config/constants'
+import {
+  setAccessToken,
+  clearAccessToken,
+  getAccessToken,
+  setForcedLogoutCallback,
+} from '../services/api'
 
 interface AuthContextType extends AuthState {
-  login: (credentials: LoginCredentials) => Promise<void>
+  login: (credentials: LoginCredentials) => Promise<User>
+  register: (credentials: RegisterCredentials) => Promise<User>
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
 }
@@ -34,28 +53,54 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Flag to prevent multiple simultaneous checkAuth calls
+  const isCheckingAuth = useRef(false)
+
   /**
    * Login user
-   * TODO: Implement actual login logic
+   * Stores access token in memory (refresh token is in httpOnly cookie)
+   * Returns user object for role-based redirect
    */
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  const login = async (credentials: LoginCredentials): Promise<User> => {
     try {
       setIsLoading(true)
-      // TODO: Call authService.login and handle response
       const response = await authService.login(credentials)
 
-      // TODO: Store tokens and user data
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.token)
-      if (response.refreshToken) {
-        localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, response.refreshToken)
-      }
-      localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user))
+      // Store access token in memory (not localStorage for security)
+      setAccessToken(response.accessToken)
 
-      setUser(response.user)
+      // Get user info
+      const currentUser = await authService.getCurrentUser()
+      setUser(currentUser)
       setIsAuthenticated(true)
-    } catch (error) {
-      // TODO: Handle error properly
+
+      // Return user for role-based redirect
+      return currentUser
+    } catch (error: any) {
       console.error('Login failed:', error)
+      clearAccessToken()
+      throw error
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  /**
+   * Register new user
+   * Returns user object after auto-login
+   */
+  const register = async (credentials: RegisterCredentials): Promise<User> => {
+    try {
+      setIsLoading(true)
+      await authService.register(credentials)
+      // After registration, automatically log in
+      const user = await login({
+        email: credentials.email,
+        password: credentials.password,
+      })
+      return user
+    } catch (error: any) {
+      console.error('Registration failed:', error)
       throw error
     } finally {
       setIsLoading(false)
@@ -64,21 +109,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   /**
    * Logout user
-   * TODO: Implement actual logout logic
+   * Clears tokens
    */
   const logout = async (): Promise<void> => {
     try {
       setIsLoading(true)
-      // TODO: Call authService.logout
       await authService.logout()
     } catch (error) {
-      // TODO: Handle error properly
       console.error('Logout failed:', error)
     } finally {
       // Clear local state regardless of API call result
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN)
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA)
+      clearAccessToken()
       setUser(null)
       setIsAuthenticated(false)
       setIsLoading(false)
@@ -87,41 +128,83 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   /**
    * Check authentication status
-   * TODO: Implement actual auth check logic
+   * If access token exists in memory, validates it and gets current user
+   * If no access token but refresh token cookie exists, attempts to refresh
+   * This handles page refresh scenario where memory is cleared but cookie persists
    */
-  const checkAuth = async (): Promise<void> => {
+  const checkAuth = useCallback(async (): Promise<void> => {
+    // Prevent multiple simultaneous checkAuth calls
+    if (isCheckingAuth.current) {
+      return
+    }
+
+    isCheckingAuth.current = true
+
     try {
       setIsLoading(true)
-      const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN)
+      let token = getAccessToken()
 
+      // If no access token in memory, try to refresh using refresh token cookie
+      // This handles page refresh scenario
       if (!token) {
-        setIsAuthenticated(false)
-        setUser(null)
-        return
+        try {
+          const refreshResponse = await authService.refreshToken()
+          token = refreshResponse.accessToken
+          setAccessToken(token)
+        } catch (refreshError) {
+          // Refresh failed - no valid refresh token, user needs to login
+          clearAccessToken()
+          setIsAuthenticated(false)
+          setUser(null)
+          setIsLoading(false)
+          isCheckingAuth.current = false
+          return
+        }
       }
 
-      // TODO: Validate token and get current user
+      // Validate token and get current user
       const currentUser = await authService.getCurrentUser()
       setUser(currentUser)
       setIsAuthenticated(true)
     } catch (error) {
-      // TODO: Handle error properly
       console.error('Auth check failed:', error)
-      localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN)
-      localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN)
-      localStorage.removeItem(STORAGE_KEYS.USER_DATA)
+      clearAccessToken()
       setIsAuthenticated(false)
       setUser(null)
     } finally {
       setIsLoading(false)
+      isCheckingAuth.current = false
     }
-  }
+  }, [])
+
+  // Set up forced logout callback for when refresh token fails
+  useEffect(() => {
+    setForcedLogoutCallback(() => {
+      // Force logout when refresh token fails
+      clearAccessToken()
+      setUser(null)
+      setIsAuthenticated(false)
+      setIsLoading(false)
+    })
+
+    // Cleanup on unmount
+    return () => {
+      setForcedLogoutCallback(() => { })
+    }
+  }, [])
+
+  // Check auth on mount - only once
+  useEffect(() => {
+    checkAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty deps - only run on mount
 
   const value: AuthContextType = {
     user,
     isAuthenticated,
     isLoading,
     login,
+    register,
     logout,
     checkAuth,
   }

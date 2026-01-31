@@ -1,49 +1,85 @@
 /**
  * Authentication service
- * TODO: Implement actual authentication API calls
+ * Integrates with backend auth API
  */
 
-import apiClient from './api'
+import apiClient, { refreshAccessToken } from './api'
 import { API_ENDPOINTS } from '../config/constants'
-import type { LoginCredentials, AuthResponse, User } from '../types'
+import type {
+    LoginCredentials,
+    RegisterCredentials,
+    LoginResponse,
+    RefreshResponse,
+    RegisterResponse,
+    User,
+    ApiResponseDto,
+} from '../types'
 
 export const authService = {
     /**
      * Login user
-     * TODO: Implement login API call
+     * Returns access token (refresh token is stored in httpOnly cookie by backend)
      */
-    login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-        // TODO: Replace with actual API call
-        const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, credentials)
-        return response.data
+    login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
+        const response = await apiClient.post<ApiResponseDto<LoginResponse>>(
+            API_ENDPOINTS.AUTH.LOGIN,
+            credentials,
+        )
+        if (response.data.status === 'error' || !response.data.data) {
+            throw new Error(response.data.message || 'Login failed')
+        }
+        return response.data.data
+    },
+
+    /**
+     * Register new user
+     */
+    register: async (credentials: RegisterCredentials): Promise<RegisterResponse> => {
+        const response = await apiClient.post<ApiResponseDto<RegisterResponse>>(
+            API_ENDPOINTS.AUTH.REGISTER,
+            credentials,
+        )
+        if (response.data.status === 'error' || !response.data.data) {
+            throw new Error(response.data.message || 'Registration failed')
+        }
+        return response.data.data
     },
 
     /**
      * Logout user
-     * TODO: Implement logout API call
+     * Revokes refresh token and clears cookie
      */
     logout: async (): Promise<void> => {
-        // TODO: Replace with actual API call
-        await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT)
+        try {
+            await apiClient.post<ApiResponseDto<null>>(API_ENDPOINTS.AUTH.LOGOUT)
+        } catch (error) {
+            // Continue with logout even if API call fails
+            console.error('Logout API call failed:', error)
+        }
     },
 
     /**
      * Get current user
-     * TODO: Implement get current user API call
      */
     getCurrentUser: async (): Promise<User> => {
-        // TODO: Replace with actual API call
-        const response = await apiClient.get<User>(API_ENDPOINTS.AUTH.ME)
-        return response.data
+        const response = await apiClient.get<ApiResponseDto<User>>(API_ENDPOINTS.AUTH.ME)
+        if (response.data.status === 'error' || !response.data.data) {
+            throw new Error(response.data.message || 'Failed to get current user')
+        }
+        return response.data.data
     },
 
     /**
      * Refresh access token
-     * TODO: Implement token refresh API call
+     * Uses refresh token from httpOnly cookie automatically
+     * Uses internal refreshAccessToken to ensure concurrency handling
      */
-    refreshToken: async (): Promise<AuthResponse> => {
-        // TODO: Replace with actual API call
-        const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.REFRESH)
-        return response.data
+    refreshToken: async (): Promise<RefreshResponse> => {
+        // Use internal refreshAccessToken function for concurrency handling
+        const newToken = await refreshAccessToken()
+        if (!newToken) {
+            throw new Error('Token refresh failed')
+        }
+        return { accessToken: newToken }
     },
 }
