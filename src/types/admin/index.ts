@@ -243,13 +243,21 @@ export interface CreateDocumentRequest {
   title: string
   filePath: string
   fileType: FileType
-  sourceType?: string
-  accessRules?: AccessRule[]
+  sourceId?: string
+  accessRules?: {
+    roles?: string[]
+    departments?: string[]
+    positions?: string[]
+  }
 }
 
 export interface UpdateDocumentRequest {
   title?: string
-  accessRules?: AccessRule[]
+  accessRules?: {
+    roles?: string[]
+    departments?: string[]
+    positions?: string[]
+  }
 }
 
 // ============ Data Source Types ============

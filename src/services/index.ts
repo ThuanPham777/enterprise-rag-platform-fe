@@ -14,5 +14,6 @@ export { dataSourcesService } from './data-sources.service'
 export { embeddingJobsService } from './embedding-jobs.service'
 export { queryLogsService } from './query-logs.service'
 export { systemLogsService } from './system-logs.service'
+export { uploadsService } from './uploads.service'
 
 export { default as apiClient } from './api'

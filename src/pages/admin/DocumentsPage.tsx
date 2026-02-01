@@ -58,15 +58,18 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  Upload,
 } from 'lucide-react'
 import { useDocuments, useDeleteDocument } from '@/hooks'
 import type { Document } from '@/types'
 import { DocumentStatus, FileType } from '@/types'
+import UploadDocumentDialog from '@/components/admin/UploadDocumentDialog'
 
 export default function DocumentsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
 
   const { data: documents, isLoading } = useDocuments()
@@ -209,6 +212,10 @@ export default function DocumentsPage() {
                   <SelectItem value={DocumentStatus.FAILED}>Failed</SelectItem>
                 </SelectContent>
               </Select>
+              <Button onClick={() => setUploadDialogOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Document
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -316,6 +323,9 @@ export default function DocumentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Upload Document Dialog */}
+      <UploadDocumentDialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen} />
     </div>
   )
 }
