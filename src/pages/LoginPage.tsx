@@ -3,10 +3,33 @@
  * Login form with React Hook Form + Zod validation
  */
 
+import { useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { useLoginForm } from '../hooks'
+import { ROUTES } from '../config/constants'
 
 export const LoginPage = () => {
+  const { isAuthenticated, isLoading } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const { form, onSubmit } = useLoginForm()
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      // Get the redirect location from state, or go back to previous page
+      const from = (location.state as any)?.from?.pathname
+
+      if (from && from !== ROUTES.LOGIN) {
+        // If there's a saved location and it's not login page, go there
+        navigate(from, { replace: true })
+      } else {
+        // Otherwise go back to previous page in history, or home if no history
+        navigate(-1)
+      }
+    }
+  }, [isAuthenticated, isLoading, location, navigate])
 
   const {
     register,
@@ -26,10 +49,7 @@ export const LoginPage = () => {
         <form onSubmit={onSubmit} className="space-y-5">
           {/* Email Field */}
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
               Email Address
             </label>
             <input
@@ -37,23 +57,19 @@ export const LoginPage = () => {
               type="email"
               id="email"
               autoComplete="email"
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors ${errors.email
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                }`}
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors ${
+                errors.email
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }`}
               placeholder="you@example.com"
             />
-            {errors.email && (
-              <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-            )}
+            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
           </div>
 
           {/* Password Field */}
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
               Password
             </label>
             <input
@@ -61,16 +77,15 @@ export const LoginPage = () => {
               type="password"
               id="password"
               autoComplete="current-password"
-              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors ${errors.password
-                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                }`}
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition-colors ${
+                errors.password
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              }`}
               placeholder="Enter your password"
             />
             {errors.password && (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.password.message}
-              </p>
+              <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
             )}
           </div>
 
@@ -121,10 +136,7 @@ export const LoginPage = () => {
         <div className="text-center text-sm text-gray-600">
           <p>
             Don't have an account?{' '}
-            <a
-              href="#"
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
+            <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
               Contact administrator
             </a>
           </p>
