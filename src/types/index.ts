@@ -4,11 +4,7 @@
  */
 
 // Common types
-export type {
-  ApiResponseDto,
-  ApiError,
-  RouteConfig,
-} from './common'
+export type { ApiResponseDto, ApiError, RouteConfig } from './common'
 
 // User types
 export type { User } from './user'
@@ -22,3 +18,6 @@ export type {
   RefreshResponse,
   RegisterResponse,
 } from './auth'
+
+// Admin types
+export * from './admin'
